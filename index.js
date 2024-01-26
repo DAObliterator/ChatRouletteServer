@@ -12,7 +12,6 @@ const server = http.createServer(app);
 import { Server } from "socket.io";
 import { actualSessionId } from "./utils/actualSessionId.js";
 import { Socket } from "dgram";
-import express from "express";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
 
