@@ -62,7 +62,7 @@ app.use(
     }),
     cookie: {
       path: "/",
-      secure: process.env.ENVIRONMENT === development ? false : true,
+      secure: process.env.ENVIRONMENT === "development" ? false : true,
     },
   })
 );
