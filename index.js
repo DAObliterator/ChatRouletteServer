@@ -62,7 +62,7 @@ app.use(
     }),
     cookie: {
       path: "/",
-      secure: false,
+      secure: process.env.ENVIRONMENT === development ? false : true,
     },
   })
 );
@@ -130,8 +130,11 @@ io.on("connection", (socket) => {
     const allSockets = await io.fetchSockets();
 
     for (const i of allSockets) {
+
+
       const randomId = i.handshake.auth.randomId;
       const username_ = i.handshake.auth.username_;
+
 
       console.log(
         randomId,
@@ -143,13 +146,13 @@ io.on("connection", (socket) => {
       );
 
       if (randomId !== currentRandomId && i.inRoom === undefined) {
+
         let roomName =
           currentRandomId > randomId
             ? `${currentRandomId}:${randomId}`
             : `${randomId}:${currentRandomId}`;
 
         socket.join(roomName);
-        // i want to execute a function after the successfull completion of this function
 
         socket.inRoom = true;
 
@@ -169,12 +172,15 @@ io.on("connection", (socket) => {
           ],
         });
       }
+
     }
   });
 
   socket.on("private-message", (data) => {
     io.to(data.roomName).emit("private-message", data);
   });
+
+  
 });
 
 const PORT = process.env.PORT;
