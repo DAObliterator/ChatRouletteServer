@@ -63,6 +63,7 @@ app.use(
     cookie: {
       path: "/",
       secure: process.env.ENVIRONMENT === "development" ? false : true,
+      httpOnly: false
     },
   })
 );
@@ -96,7 +97,8 @@ app.post("/initialize-session", async (req, res) => {
   }
 });
 
-app.get("/check-session", (req, res) => {
+app.post("/check-session", (req, res) => {
+  console.log(`/check-session get endpoint ${JSON.stringify(req.session)} `)
   if (req.session.randomId && req.session.username) {
     res.status(200).json({
       message: "randomId and username successfully added to the req.session \n",
@@ -118,7 +120,7 @@ const io = new Server(server, {
 
 let socketsMap = {};
 
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
   console.log(socket.id, " -in-connection- ");
 
   socketsMap[socket.handshake.auth.randomId] = socket.id;
@@ -179,6 +181,22 @@ io.on("connection", (socket) => {
   socket.on("private-message", (data) => {
     io.to(data.roomName).emit("private-message", data);
   });
+
+  
+   const activeSockets = await io.fetchSockets();
+
+   const setOfAllActualActiveUsers = new Set();
+
+    const actualActiveSockets = [];
+   activeSockets.forEach((i) => {
+    setOfAllActualActiveUsers.add(i.handshake.auth.randomId);
+   })
+
+    
+     console.log(`listening for active-sockets event ${setOfAllActualActiveUsers.size} ${activeSockets.length}`);
+
+    socket.emit("active-sockets", { peopleOnline: setOfAllActualActiveUsers.size});
+  
 
   
 });
