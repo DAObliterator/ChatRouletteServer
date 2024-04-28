@@ -98,7 +98,7 @@ app.post("/initialize-session", async (req, res) => {
 });
 
 app.post("/check-session", (req, res) => {
-  console.log(`/check-session get endpoint ${JSON.stringify(req.session)} `)
+  //console.log(`/check-session get endpoint ${JSON.stringify(req.session)} `)
   if (req.session.randomId && req.session.username) {
     res.status(200).json({
       message: "randomId and username successfully added to the req.session \n",
@@ -129,53 +129,106 @@ io.on("connection", async (socket) => {
     const currentRandomId = socket.handshake.auth.randomId;
     const currentUsername_ = socket.handshake.auth.username_;
 
+    console.log( "interests of this socket " , JSON.stringify(socket.handshake.auth.interests))
+
     const allSockets = await io.fetchSockets();
 
-    for (const i of allSockets) {
+    //check if there are any connected sockets with similar interests
+
+    let currentInterests = (socket.handshake.auth.interests);
 
 
-      const randomId = i.handshake.auth.randomId;
-      const username_ = i.handshake.auth.username_;
+    for ( const i of allSockets) {
 
+       const randomId = i.handshake.auth.randomId;
+       const username_ = i.handshake.auth.username_;
 
-      console.log(
-        randomId,
-        " randomId ",
-        i.id,
-        " socket.id ",
-        i.inRoom,
-        " room status \n "
-      );
+       console.log(
+         randomId,
+         " randomId ",
+         i.id,
+         " socket.id ",
+         i.inRoom,
+         " room status \n "
+       );
 
-      if (randomId !== currentRandomId && i.inRoom === undefined) {
+       if (randomId !== currentRandomId && i.inRoom === undefined ) {
+        
+        let matchingInterests = [];
 
-        let roomName =
-          currentRandomId > randomId
-            ? `${currentRandomId}:${randomId}`
-            : `${randomId}:${currentRandomId}`;
-
-        socket.join(roomName);
-
-        socket.inRoom = true;
-
-        i.join(roomName);
-
-        i.inRoom = true;
-
-        io.to(roomName).emit("room-joined", {
-          roomName: roomName,
-          participants: [
-            {
-              randomId: currentRandomId,
-              type: "sender",
-              username_: currentUsername_,
-            },
-            { randomId: randomId, type: "receiver", username_: username_ },
-          ],
+        //finding if there are any common interests
+        i.handshake.auth.interests.forEach((interest) => {
+          if (currentInterests.includes(interest)) {
+            matchingInterests.push(interest);
+          }
         });
-      }
+
+        console.log(`matching interests after comparing ${matchingInterests}`)
+
+        if ( matchingInterests.length > 0 ) {
+          let roomName =
+            currentRandomId > randomId
+              ? `${currentRandomId}:${randomId}`
+              : `${randomId}:${currentRandomId}`;
+
+          socket.join(roomName);
+
+          socket.inRoom = true;
+
+          i.join(roomName);
+
+          i.inRoom = true;
+
+          io.to(roomName).emit("room-joined", {
+            roomName: roomName,
+            participants: [
+              {
+                randomId: currentRandomId,
+                type: "sender",
+                username_: currentUsername_,
+              },
+              { randomId: randomId, type: "receiver", username_: username_ },
+            ],
+            matchingInterests: matchingInterests
+          }); //this should actually be sent to both the users last observed that it is only being sent to just one...
+        } else if (randomId !== currentRandomId && i.inRoom === undefined && matchingInterests.length === 0) {
+          let roomName =
+            currentRandomId > randomId
+              ? `${currentRandomId}:${randomId}`
+              : `${randomId}:${currentRandomId}`;
+
+          socket.join(roomName);
+
+          socket.inRoom = true;
+
+          i.join(roomName);
+
+          i.inRoom = true;
+
+          io.to(roomName).emit("room-joined", {
+            roomName: roomName,
+            participants: [
+              {
+                randomId: currentRandomId,
+                type: "sender",
+                username_: currentUsername_,
+              },
+              { randomId: randomId, type: "receiver", username_: username_ },
+            ],
+            matchingInterests: [],
+          }); //this should actually be sent to both the users last observed that it is only being sent to just one...
+        }
+
+
+         
+       }
+
+
+
 
     }
+
+   
   });
 
   socket.on("private-message", (data) => {
@@ -196,6 +249,102 @@ io.on("connection", async (socket) => {
      console.log(`listening for active-sockets event ${setOfAllActualActiveUsers.size} ${activeSockets.length}`);
 
     socket.emit("active-sockets", { peopleOnline: setOfAllActualActiveUsers.size});
+
+    socket.on("chat-disconnected" , async (data) => {
+
+      console.log(`${JSON.stringify(data)} --- listening to chat-disconnected event on the server side`);
+
+      let randomIdArray = []
+      if (data.roomName !== null ) {
+        randomIdArray = data.roomName.split(":");
+      } 
+
+      const rIdDisconnectedUser = socket.handshake.auth.randomId;
+
+
+      console.log(`${rIdDisconnectedUser} --- rId of disconnected user \n`);
+
+      const allSocketObjects = await io.fetchSockets();
+
+
+      if (Array.isArray(randomIdArray)) {
+
+         for (const i of randomIdArray) {
+           if (i !== "") {
+             if (i !== rIdDisconnectedUser) {
+               console.log(`rId of other user in room  - ${i} `);
+
+
+               for ( const j of allSocketObjects) {
+
+                if ( j.handshake.auth.randomId === i ) {
+
+                  j.emit("partner-disconnected" , { message: "Partner Disconnected"})
+
+                }
+
+               }
+
+             }
+            
+
+
+           }
+         }
+
+
+      }
+     
+
+
+      //find the unique identifier of the browser associated with the other socket in the room
+      //if found send a event saying the other user has disconnected 
+
+      
+
+      const userWhoDisconnected = socket.id;
+
+      console.log(`${userWhoDisconnected} --- socket id of user who disconnected \n`);
+      
+
+      const currentRoomsActive = io.sockets.adapter.rooms;
+
+  
+        for ( const i of currentRoomsActive) {
+           if ( i[1].has(userWhoDisconnected)) {
+              console.log(i[1] , " Set containing all participants in the room \n");
+              i[1].forEach((item) => {
+                console.log(item , " id of socket in the room from which current user left \n ")
+                if ( item != userWhoDisconnected) {
+
+                  //emit an event and send data informing rest of participants about departure
+                  const my_socket = io.sockets.sockets.get(
+                    item
+                  );
+
+                  my_socket.emit("partner-disconnected" , { message: "partner disconnected"});
+                  
+
+                  const otherUserIdentity = my_socket.handshake.auth.randomId;
+
+                  for ( const i of allSocketObjects) {
+                    if ( i.handshake.auth.randomId === otherUserIdentity) {
+                      i.emit("partner-disconnected" , { message: "partner disconnected "})
+                    }
+                  }
+
+                }
+              })
+
+
+           }
+        }
+
+
+
+
+
+    })
   
 
   
