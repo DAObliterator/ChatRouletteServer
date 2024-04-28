@@ -137,6 +137,10 @@ io.on("connection", async (socket) => {
 
     let currentInterests = (socket.handshake.auth.interests);
 
+    let currentInterests_ = currentInterests.map((interest) => {
+      return interest.trim().toUpperCase()
+    });
+
 
     for ( const i of allSockets) {
 
@@ -158,7 +162,7 @@ io.on("connection", async (socket) => {
 
         //finding if there are any common interests
         i.handshake.auth.interests.forEach((interest) => {
-          if (currentInterests.includes(interest)) {
+          if (currentInterests_.includes(interest.trim().toUpperCase())) {
             matchingInterests.push(interest);
           }
         });
